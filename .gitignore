@@ -1,0 +1,4 @@
+# Private health data: never publish (the GitHub repo is public)
+*.csv
+*.txt
+*.sql
