@@ -22,6 +22,29 @@
         <label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required /></label>
         <div class="notice" id="login-notice" role="alert" hidden></div>
         <button class="primary-button" id="login-button" type="submit">Sign in</button>
+        <button class="text-button login-switch" id="show-forgot" type="button">Forgot password?</button>
+      </form>
+
+      <form class="login-card" id="forgot-form" hidden>
+        <span class="brand"><span class="brand-mark" aria-hidden="true">C</span><span class="brand-text">Carebook <small>of Ayesha Khatun</small></span></span>
+        <p class="eyebrow">PASSWORD RESET</p>
+        <h1>Forgot password</h1>
+        <p class="page-description">Enter your sign-in email. We'll send a link to set a new password.</p>
+        <label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="username" required /></label>
+        <div class="notice" id="forgot-notice" role="status" hidden></div>
+        <button class="primary-button" id="forgot-button" type="submit">Send reset link</button>
+        <button class="text-button login-switch" id="back-to-login" type="button">Back to sign in</button>
+      </form>
+
+      <form class="login-card" id="reset-form" hidden>
+        <span class="brand"><span class="brand-mark" aria-hidden="true">C</span><span class="brand-text">Carebook <small>of Ayesha Khatun</small></span></span>
+        <p class="eyebrow">PASSWORD RESET</p>
+        <h1>Set a new password</h1>
+        <p class="page-description">Use at least 8 characters.</p>
+        <label class="form-field"><span>New password</span><input name="password" type="password" autocomplete="new-password" minlength="8" required /></label>
+        <label class="form-field"><span>Confirm new password</span><input name="confirm" type="password" autocomplete="new-password" minlength="8" required /></label>
+        <div class="notice" id="reset-notice" role="alert" hidden></div>
+        <button class="primary-button" id="reset-button" type="submit">Save new password</button>
       </form>
     </main>
 

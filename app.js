@@ -2,6 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 import { openTrends, rangeStatus } from './trends.js';
 
+// Read the reset-link details before the Supabase client consumes and clears the URL.
+const authParams = new URLSearchParams(location.hash.slice(1));
+let recovering = authParams.get('type') === 'recovery';
+const authLinkError = authParams.get('error_description');
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 // Dropdown fields list values already used in these tables; "fills" are filled in when a value is picked.
 const PROVIDER_CHOICES = {
@@ -591,6 +596,67 @@ function showSignedIn(signedIn) {
   document.querySelector('#app-shell').hidden = !signedIn;
 }
 
+// Show one card on the sign-in screen: 'login', 'forgot' or 'reset'.
+function showAuthCard(name) {
+  showSignedIn(false);
+  for (const card of ['login', 'forgot', 'reset']) {
+    document.querySelector(`#${card}-form`).hidden = card !== name;
+  }
+  document.querySelector(`#${name}-form input`)?.focus();
+}
+
+function setAuthNotice(id, message, kind = 'error') {
+  const element = document.querySelector(id);
+  element.textContent = message;
+  element.className = `notice notice-${kind}`;
+  element.hidden = !message;
+}
+
+async function sendResetLink(event) {
+  event.preventDefault();
+  const button = document.querySelector('#forgot-button');
+  const email = new FormData(event.target).get('email');
+  button.disabled = true;
+  setAuthNotice('#forgot-notice', '');
+  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}${location.pathname}` });
+  button.disabled = false;
+  if (error) {
+    setAuthNotice('#forgot-notice', `Could not send the reset link: ${error.message}`);
+    return;
+  }
+  setAuthNotice('#forgot-notice', 'If this email has an account, a reset link is on its way. Check your inbox and spam folder; the link works once.', 'success');
+}
+
+async function saveNewPassword(event) {
+  event.preventDefault();
+  const button = document.querySelector('#reset-button');
+  const values = new FormData(event.target);
+  const password = values.get('password');
+  if (password !== values.get('confirm')) {
+    setAuthNotice('#reset-notice', 'The two passwords do not match.');
+    return;
+  }
+  button.disabled = true;
+  setAuthNotice('#reset-notice', '');
+  const { data, error } = await supabase.auth.updateUser({ password });
+  button.disabled = false;
+  if (error) {
+    setAuthNotice('#reset-notice', `Could not save the new password: ${error.message}`);
+    return;
+  }
+  recovering = false;
+  event.target.reset();
+  enterApp(data.user);
+}
+
+function enterApp(user) {
+  signedIn = true;
+  state.userId = user?.id ?? null;
+  showSignedIn(true);
+  // Defer so the Supabase auth lock is released before querying.
+  setTimeout(loadRecords, 0);
+}
+
 async function signIn(event) {
   event.preventDefault();
   const loginNotice = document.querySelector('#login-notice');
@@ -610,21 +676,39 @@ async function signIn(event) {
 }
 
 document.querySelector('#login-form').addEventListener('submit', signIn);
+document.querySelector('#forgot-form').addEventListener('submit', sendResetLink);
+document.querySelector('#reset-form').addEventListener('submit', saveNewPassword);
+document.querySelector('#show-forgot').addEventListener('click', () => {
+  document.querySelector('#forgot-form [name="email"]').value = document.querySelector('#login-form [name="email"]').value;
+  setAuthNotice('#forgot-notice', '');
+  showAuthCard('forgot');
+});
+document.querySelector('#back-to-login').addEventListener('click', () => showAuthCard('login'));
 document.querySelector('#sign-out-button').addEventListener('click', () => supabase.auth.signOut());
 
+if (authLinkError) {
+  setAuthNotice('#login-notice', `That link did not work: ${authLinkError}. Request a new reset link.`);
+  history.replaceState(null, '', location.pathname);
+}
+
 let signedIn = null;
-supabase.auth.onAuthStateChange((_event, session) => {
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') recovering = true;
+  // A reset link signs the user in; ask for the new password before showing records.
+  if (recovering && session) {
+    showAuthCard('reset');
+    return;
+  }
   const nowSignedIn = Boolean(session);
   if (nowSignedIn === signedIn) return;
-  signedIn = nowSignedIn;
-  state.userId = session?.user.id ?? null;
-  showSignedIn(signedIn);
-  if (signedIn) {
-    // Defer so the Supabase auth lock is released before querying.
-    setTimeout(loadRecords, 0);
-  } else {
-    state.records = [];
-    listElement.replaceChildren();
-    document.querySelector('#login-form').reset();
+  if (nowSignedIn) {
+    enterApp(session.user);
+    return;
   }
+  signedIn = false;
+  state.userId = null;
+  showAuthCard('login');
+  state.records = [];
+  listElement.replaceChildren();
+  document.querySelector('#login-form').reset();
 });
