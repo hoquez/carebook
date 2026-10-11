@@ -77,6 +77,26 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .range-in { background: #2fb36a; box-shadow: 0 0 6px 2px #2fb36a99; animation: glow 2s ease-in-out infinite; }
 .range-out { background: #d93b2b; box-shadow: 0 0 0 3px #d93b2b26; }
 @keyframes glow { 50% { box-shadow: 0 0 10px 4px #2fb36a66; } }
+.trend-button { display: inline-flex; align-items: center; gap: 6px; }
+.trend-dialog { width: min(780px, calc(100vw - 28px)); }
+.trend-body { padding: 25px; }
+.trend-summary { margin-bottom: 16px; color: #526158; font-size: 13px; line-height: 1.55; }
+.trend-chart { position: relative; overflow-x: auto; }
+.trend-chart svg { display: block; touch-action: pan-y; }
+.trend-tick { fill: #75817a; font: 11px var(--font-body); font-variant-numeric: tabular-nums; }
+.trend-ref-label { fill: #526158; font: 600 11px var(--font-body); }
+.trend-value-label { fill: var(--ink); font: 700 12px var(--font-body); }
+.trend-empty { margin: 30px 0; color: var(--muted); font-size: 13px; text-align: center; }
+.trend-tooltip { position: absolute; display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); box-shadow: 0 6px 20px #13271c1f; color: var(--ink); font-size: 12px; white-space: nowrap; pointer-events: none; }
+.trend-status-in { color: #2d6547; font-weight: 600; }
+.trend-status-out { color: #b03a2a; font-weight: 600; }
+.trend-table { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 13px; }
+.trend-table summary { color: var(--green); font-weight: 700; cursor: pointer; }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+.trend-table table { width: 100%; border-collapse: collapse; }
+.trend-table th, .trend-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.trend-table th { color: var(--muted); font-size: 11px; font-weight: 600; }
+.trend-table td { font-variant-numeric: tabular-nums; }
 .record-actions { display: flex; align-items: center; gap: 14px; }
 .text-button { padding: 4px 0; border: 0; background: transparent; color: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
 .text-button:hover { text-decoration: underline; }
@@ -155,6 +175,8 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
   .toolbar { min-height: 54px; }
   .record-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
   .record-item { padding: 19px 14px 21px; }
+  .record-item-header { flex-wrap: wrap; row-gap: 8px; }
+  .trend-body { padding: 19px; }
   .page-footer { flex-direction: column; align-items: stretch; gap: 14px; padding-bottom: 22px; }
   .contact-button { flex: 1 1 100%; }
   .record-dialog form { padding: 19px; }

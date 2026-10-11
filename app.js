@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
+import { openTrends, rangeStatus } from './trends.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 const sectionConfig = {
@@ -30,6 +31,7 @@ const sectionConfig = {
     sortBy: 'test_date',
     file: { name: 'report_path', label: 'Report' },
     rangeCheck: { value: 'result', range: 'reference_range' },
+    trends: true,
     fields: [
       { name: 'test_name', label: 'Test name', required: true },
       { name: 'result', label: 'Result' },
@@ -69,30 +71,6 @@ const dialogNotice = document.querySelector('#dialog-notice');
 
 function fileName(path) {
   return path.split('/').pop();
-}
-
-function numbersIn(text) {
-  return (String(text).match(/\d*\.?\d+/g) ?? []).map(Number);
-}
-
-// Reads ranges like "4–10", "4 to 10", "<35", "up to 33" or ">5". Returns null if unreadable.
-function parseRange(text) {
-  if (!text) return null;
-  const range = String(text).toLowerCase().replace(/[–—]/g, '-').trim();
-  const numbers = numbersIn(range);
-  if (!numbers.length) return null;
-  if (/^(<|≤|up ?to|less than|below)/.test(range)) return { min: -Infinity, max: numbers.at(-1) };
-  if (/^(>|≥|more than|above|at least)/.test(range)) return { min: numbers[0], max: Infinity };
-  if (numbers.length >= 2 && /\d\s*(-|to)\s*\.?\d/.test(range)) return { min: numbers[0], max: numbers[1] };
-  return null;
-}
-
-// true = within range, false = outside, null = cannot tell.
-function rangeStatus(result, rangeText) {
-  const range = parseRange(rangeText);
-  const [value] = numbersIn(result ?? '');
-  if (!range || value === undefined) return null;
-  return value >= range.min && value <= range.max;
 }
 
 function setDialogNotice(message) {
@@ -193,6 +171,15 @@ function render() {
     deleteButton.type = 'button';
     deleteButton.textContent = 'Delete';
     deleteButton.addEventListener('click', () => deleteRecord(record));
+    if (config.trends) {
+      const trendButton = document.createElement('button');
+      trendButton.className = 'text-button trend-button';
+      trendButton.type = 'button';
+      trendButton.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 15 3.5-4 3 2.5L17 9"/></svg>';
+      trendButton.append('View trends');
+      trendButton.addEventListener('click', () => openTrends(state.records, record));
+      actions.append(trendButton);
+    }
     actions.append(editButton, deleteButton);
     header.append(heading, actions);
 
