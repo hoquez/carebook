@@ -29,6 +29,7 @@ const sectionConfig = {
     primary: 'test_name',
     sortBy: 'test_date',
     file: { name: 'report_path', label: 'Report' },
+    rangeCheck: { value: 'result', range: 'reference_range' },
     fields: [
       { name: 'test_name', label: 'Test name', required: true },
       { name: 'result', label: 'Result' },
@@ -68,6 +69,30 @@ const dialogNotice = document.querySelector('#dialog-notice');
 
 function fileName(path) {
   return path.split('/').pop();
+}
+
+function numbersIn(text) {
+  return (String(text).match(/\d*\.?\d+/g) ?? []).map(Number);
+}
+
+// Reads ranges like "4–10", "4 to 10", "<35", "up to 33" or ">5". Returns null if unreadable.
+function parseRange(text) {
+  if (!text) return null;
+  const range = String(text).toLowerCase().replace(/[–—]/g, '-').trim();
+  const numbers = numbersIn(range);
+  if (!numbers.length) return null;
+  if (/^(<|≤|up ?to|less than|below)/.test(range)) return { min: -Infinity, max: numbers.at(-1) };
+  if (/^(>|≥|more than|above|at least)/.test(range)) return { min: numbers[0], max: Infinity };
+  if (numbers.length >= 2 && /\d\s*(-|to)\s*\.?\d/.test(range)) return { min: numbers[0], max: numbers[1] };
+  return null;
+}
+
+// true = within range, false = outside, null = cannot tell.
+function rangeStatus(result, rangeText) {
+  const range = parseRange(rangeText);
+  const [value] = numbersIn(result ?? '');
+  if (!range || value === undefined) return null;
+  return value >= range.min && value <= range.max;
 }
 
 function setDialogNotice(message) {
@@ -145,6 +170,17 @@ function render() {
     header.className = 'record-item-header';
     const heading = document.createElement('h2');
     heading.textContent = escapeText(record[config.primary]) || 'Untitled record';
+    if (config.rangeCheck) {
+      const inRange = rangeStatus(record[config.rangeCheck.value], record[config.rangeCheck.range]);
+      if (inRange !== null) {
+        const dot = document.createElement('span');
+        dot.className = `range-dot ${inRange ? 'range-in' : 'range-out'}`;
+        dot.setAttribute('role', 'img');
+        dot.setAttribute('aria-label', inRange ? 'Within reference range' : 'Outside reference range');
+        dot.title = inRange ? 'Within reference range' : 'Outside reference range';
+        heading.prepend(dot);
+      }
+    }
     const actions = document.createElement('div');
     actions.className = 'record-actions';
     const editButton = document.createElement('button');

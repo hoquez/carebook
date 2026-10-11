@@ -72,6 +72,11 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .record-band-1 { background: #e6f0e8; border-bottom-color: #d3e3d7; }
 .record-item-header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 16px; }
 .record-item h2 { margin: 0; font: 700 16px/1.35 var(--font-display); }
+.record-item h2 { display: flex; align-items: center; gap: 10px; }
+.range-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+.range-in { background: #2fb36a; box-shadow: 0 0 6px 2px #2fb36a99; animation: glow 2s ease-in-out infinite; }
+.range-out { background: #d93b2b; box-shadow: 0 0 0 3px #d93b2b26; }
+@keyframes glow { 50% { box-shadow: 0 0 10px 4px #2fb36a66; } }
 .record-actions { display: flex; align-items: center; gap: 14px; }
 .text-button { padding: 4px 0; border: 0; background: transparent; color: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
 .text-button:hover { text-decoration: underline; }
