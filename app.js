@@ -3,6 +3,17 @@ import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './supabase-config.js';
 import { openTrends, rangeStatus } from './trends.js';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Dropdown fields list values already used in these tables; "fills" are filled in when a value is picked.
+const PROVIDER_CHOICES = {
+  noun: 'provider',
+  sources: [
+    { table: 'medications', column: 'prescriber', fills: ['specialization'] },
+    { table: 'visits', column: 'provider' }
+  ]
+};
+const TEST_CHOICES = { noun: 'test', sources: [{ table: 'lab_results', column: 'test_name', fills: ['unit', 'reference_range'] }] };
+const UNIT_CHOICES = { noun: 'unit', sources: [{ table: 'lab_results', column: 'unit' }] };
+
 const sectionConfig = {
   medications: {
     title: 'Medications',
@@ -16,7 +27,7 @@ const sectionConfig = {
       { name: 'strength', label: 'Strength' },
       { name: 'brand', label: 'Brand name' },
       { name: 'dosage', label: 'Dosage' },
-      { name: 'prescriber', label: 'Prescriber', provider: true },
+      { name: 'prescriber', label: 'Prescriber', choices: PROVIDER_CHOICES },
       { name: 'specialization', label: 'Specialization' },
       { name: 'start_date', label: 'Start date', type: 'date' },
       { name: 'end_date', label: 'End date', type: 'date' },
@@ -33,9 +44,9 @@ const sectionConfig = {
     rangeCheck: { value: 'result', range: 'reference_range' },
     trends: true,
     fields: [
-      { name: 'test_name', label: 'Test name', required: true },
+      { name: 'test_name', label: 'Test name', required: true, choices: TEST_CHOICES },
       { name: 'result', label: 'Result' },
-      { name: 'unit', label: 'Unit' },
+      { name: 'unit', label: 'Unit', choices: UNIT_CHOICES },
       { name: 'reference_range', label: 'Reference range' },
       { name: 'test_date', label: 'Test date', type: 'date' },
       { name: 'report_note', label: 'Report note', multiline: true }
@@ -50,7 +61,7 @@ const sectionConfig = {
     groupBy: 'provider',
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
-      { name: 'provider', label: 'Provider', provider: true },
+      { name: 'provider', label: 'Provider', choices: PROVIDER_CHOICES },
       { name: 'summary', label: 'Summary' },
       { name: 'symptoms', label: 'Symptoms', multiline: true },
       { name: 'notes', label: 'Notes', multiline: true }
@@ -58,7 +69,7 @@ const sectionConfig = {
   }
 };
 
-const NEW_PROVIDER = '__new__';
+const NEW_CHOICE = '__new__';
 const REPORT_BUCKET = 'reports';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -276,28 +287,28 @@ async function loadOtherCounts() {
   }
 }
 
-// Providers already used in either tab, plus the last known specialization for each.
-async function loadProviders() {
-  const [medications, visits] = await Promise.all([
-    supabase.from('medications').select('prescriber, specialization'),
-    supabase.from('visits').select('provider')
-  ]);
-  const specializations = new Map();
+// Values already used for a dropdown field, plus related values to fill in when one is picked.
+async function loadChoices(choices) {
+  const results = await Promise.all(choices.sources.map(source =>
+    supabase.from(source.table).select([source.column, ...(source.fills ?? [])].join(', '))
+  ));
   const names = new Set();
-  for (const row of medications.data ?? []) {
-    const name = row.prescriber?.trim();
-    if (!name) continue;
-    names.add(name);
-    if (row.specialization) specializations.set(name, row.specialization);
-  }
-  for (const row of visits.data ?? []) {
-    const name = row.provider?.trim();
-    if (name) names.add(name);
-  }
-  return { names: [...names].sort((a, b) => a.localeCompare(b)), specializations };
+  const fills = new Map();
+  choices.sources.forEach((source, index) => {
+    for (const row of results[index].data ?? []) {
+      const name = row[source.column]?.trim();
+      if (!name) continue;
+      names.add(name);
+      const known = fills.get(name) ?? {};
+      for (const column of source.fills ?? []) if (row[column]) known[column] = row[column];
+      fills.set(name, known);
+    }
+  });
+  return { names: [...names].sort((a, b) => a.localeCompare(b)), fills };
 }
 
-function providerField(field, currentValue, providers) {
+function choiceField(field, currentValue, options) {
+  const { noun } = field.choices;
   const wrapper = document.createElement('div');
   wrapper.className = 'form-field';
   const label = document.createElement('label');
@@ -307,27 +318,30 @@ function providerField(field, currentValue, providers) {
   const select = document.createElement('select');
   select.id = `field-${field.name}`;
   select.name = field.name;
-  const names = currentValue && !providers.names.includes(currentValue) ? [...providers.names, currentValue] : providers.names;
-  select.append(new Option('Select a provider', ''));
+  if (field.required) select.required = true;
+  const names = currentValue && !options.names.includes(currentValue) ? [...options.names, currentValue] : options.names;
+  select.append(new Option(`Select a ${noun}`, ''));
   for (const name of names) select.append(new Option(name, name));
-  select.append(new Option('+ Add new provider…', NEW_PROVIDER));
+  select.append(new Option(`+ Add new ${noun}…`, NEW_CHOICE));
   select.value = currentValue ?? '';
 
   const newName = document.createElement('input');
   newName.type = 'text';
-  newName.name = `${field.name}${NEW_PROVIDER}`;
-  newName.placeholder = 'New provider name';
-  newName.setAttribute('aria-label', `New ${field.label.toLocaleLowerCase()} name`);
+  newName.name = `${field.name}${NEW_CHOICE}`;
+  newName.placeholder = `New ${noun}`;
+  newName.setAttribute('aria-label', `New ${noun}`);
   newName.hidden = true;
 
   select.addEventListener('change', () => {
-    const adding = select.value === NEW_PROVIDER;
+    const adding = select.value === NEW_CHOICE;
     newName.hidden = !adding;
     newName.required = adding;
     if (adding) newName.focus();
-    const specialization = form.querySelector('[name="specialization"]');
-    const known = providers.specializations.get(select.value);
-    if (specialization && known && !specialization.value) specialization.value = known;
+    // Fill related fields (e.g. specialization, unit, range) only when they are still empty.
+    for (const [column, value] of Object.entries(options.fills.get(select.value) ?? {})) {
+      const target = form.querySelector(`[name="${column}"]`);
+      if (target && !target.value) target.value = value;
+    }
   });
 
   wrapper.append(label, select, newName);
@@ -339,12 +353,13 @@ async function openDialog(record = null) {
   const config = activeConfig();
   document.querySelector('#dialog-title').textContent = record ? 'Edit record' : 'Add record';
   document.querySelector('#save-button').textContent = record ? 'Save changes' : 'Save record';
-  const providers = config.fields.some(field => field.provider) ? await loadProviders() : null;
+  const choiceFields = config.fields.filter(field => field.choices);
+  const choiceOptions = new Map(await Promise.all(choiceFields.map(async field => [field.name, await loadChoices(field.choices)])));
   const fieldsContainer = document.querySelector('#form-fields');
   fieldsContainer.replaceChildren();
   for (const field of config.fields) {
-    if (field.provider) {
-      fieldsContainer.append(providerField(field, record?.[field.name], providers));
+    if (field.choices) {
+      fieldsContainer.append(choiceField(field, record?.[field.name], choiceOptions.get(field.name)));
       continue;
     }
     const wrapper = document.createElement('label');
@@ -386,7 +401,7 @@ async function openDialog(record = null) {
   }
   setDialogNotice('');
   dialog.showModal();
-  fieldsContainer.querySelector('input, textarea')?.focus();
+  fieldsContainer.querySelector(':is(input, select, textarea):not([hidden])')?.focus();
 }
 
 async function saveRecord(event) {
@@ -395,7 +410,7 @@ async function saveRecord(event) {
   const formData = new FormData(form);
   const payload = Object.fromEntries(config.fields.map(field => {
     let value = formData.get(field.name);
-    if (field.provider && value === NEW_PROVIDER) value = String(formData.get(`${field.name}${NEW_PROVIDER}`) ?? '').trim();
+    if (field.choices && value === NEW_CHOICE) value = String(formData.get(`${field.name}${NEW_CHOICE}`) ?? '').trim();
     return [field.name, value === '' ? null : value];
   }));
   const saveButton = document.querySelector('#save-button');
