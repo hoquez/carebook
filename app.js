@@ -208,8 +208,8 @@ async function loadRecords() {
   listElement.innerHTML = '<div class="loading-state">Loading records…</div>';
   setNotice('');
   const { table, sortBy, groupBy } = activeConfig();
-  // Earliest date first; rows sharing a date and provider stay next to each other.
-  let query = supabase.from(table).select('*').order(sortBy, { ascending: true, nullsFirst: false });
+  // Most recent date first; rows sharing a date and provider stay next to each other.
+  let query = supabase.from(table).select('*').order(sortBy, { ascending: false, nullsFirst: false });
   if (groupBy) query = query.order(groupBy, { ascending: true, nullsFirst: false });
   const { data, error } = await query;
   if (error) {
