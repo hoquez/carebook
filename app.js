@@ -15,7 +15,7 @@ const sectionConfig = {
       { name: 'strength', label: 'Strength' },
       { name: 'brand', label: 'Brand name' },
       { name: 'dosage', label: 'Dosage' },
-      { name: 'prescriber', label: 'Prescriber' },
+      { name: 'prescriber', label: 'Prescriber', provider: true },
       { name: 'specialization', label: 'Specialization' },
       { name: 'start_date', label: 'Start date', type: 'date' },
       { name: 'end_date', label: 'End date', type: 'date' },
@@ -47,7 +47,7 @@ const sectionConfig = {
     groupBy: 'provider',
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
-      { name: 'provider', label: 'Provider' },
+      { name: 'provider', label: 'Provider', provider: true },
       { name: 'summary', label: 'Summary' },
       { name: 'symptoms', label: 'Symptoms', multiline: true },
       { name: 'notes', label: 'Notes', multiline: true }
@@ -55,6 +55,7 @@ const sectionConfig = {
   }
 };
 
+const NEW_PROVIDER = '__new__';
 const REPORT_BUCKET = 'reports';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -252,14 +253,77 @@ async function loadOtherCounts() {
   }
 }
 
-function openDialog(record = null) {
+// Providers already used in either tab, plus the last known specialization for each.
+async function loadProviders() {
+  const [medications, visits] = await Promise.all([
+    supabase.from('medications').select('prescriber, specialization'),
+    supabase.from('visits').select('provider')
+  ]);
+  const specializations = new Map();
+  const names = new Set();
+  for (const row of medications.data ?? []) {
+    const name = row.prescriber?.trim();
+    if (!name) continue;
+    names.add(name);
+    if (row.specialization) specializations.set(name, row.specialization);
+  }
+  for (const row of visits.data ?? []) {
+    const name = row.provider?.trim();
+    if (name) names.add(name);
+  }
+  return { names: [...names].sort((a, b) => a.localeCompare(b)), specializations };
+}
+
+function providerField(field, currentValue, providers) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'form-field';
+  const label = document.createElement('label');
+  label.textContent = field.label;
+  label.htmlFor = `field-${field.name}`;
+
+  const select = document.createElement('select');
+  select.id = `field-${field.name}`;
+  select.name = field.name;
+  const names = currentValue && !providers.names.includes(currentValue) ? [...providers.names, currentValue] : providers.names;
+  select.append(new Option('Select a provider', ''));
+  for (const name of names) select.append(new Option(name, name));
+  select.append(new Option('+ Add new provider…', NEW_PROVIDER));
+  select.value = currentValue ?? '';
+
+  const newName = document.createElement('input');
+  newName.type = 'text';
+  newName.name = `${field.name}${NEW_PROVIDER}`;
+  newName.placeholder = 'New provider name';
+  newName.setAttribute('aria-label', `New ${field.label.toLocaleLowerCase()} name`);
+  newName.hidden = true;
+
+  select.addEventListener('change', () => {
+    const adding = select.value === NEW_PROVIDER;
+    newName.hidden = !adding;
+    newName.required = adding;
+    if (adding) newName.focus();
+    const specialization = form.querySelector('[name="specialization"]');
+    const known = providers.specializations.get(select.value);
+    if (specialization && known && !specialization.value) specialization.value = known;
+  });
+
+  wrapper.append(label, select, newName);
+  return wrapper;
+}
+
+async function openDialog(record = null) {
   state.editing = record;
   const config = activeConfig();
   document.querySelector('#dialog-title').textContent = record ? 'Edit record' : 'Add record';
   document.querySelector('#save-button').textContent = record ? 'Save changes' : 'Save record';
+  const providers = config.fields.some(field => field.provider) ? await loadProviders() : null;
   const fieldsContainer = document.querySelector('#form-fields');
   fieldsContainer.replaceChildren();
   for (const field of config.fields) {
+    if (field.provider) {
+      fieldsContainer.append(providerField(field, record?.[field.name], providers));
+      continue;
+    }
     const wrapper = document.createElement('label');
     wrapper.className = field.multiline ? 'form-field form-field-wide' : 'form-field';
     const label = document.createElement('span');
@@ -305,8 +369,10 @@ function openDialog(record = null) {
 async function saveRecord(event) {
   event.preventDefault();
   const config = activeConfig();
+  const formData = new FormData(form);
   const payload = Object.fromEntries(config.fields.map(field => {
-    const value = new FormData(form).get(field.name);
+    let value = formData.get(field.name);
+    if (field.provider && value === NEW_PROVIDER) value = String(formData.get(`${field.name}${NEW_PROVIDER}`) ?? '').trim();
     return [field.name, value === '' ? null : value];
   }));
   const saveButton = document.querySelector('#save-button');
