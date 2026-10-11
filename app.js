@@ -6,7 +6,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 // Dropdown fields list values already used in these tables; "fills" are filled in when a value is picked.
 const PROVIDER_CHOICES = {
   noun: 'provider',
+  profiles: true,
   sources: [
+    { table: 'providers', column: 'name' },
     { table: 'medications', column: 'prescriber', fills: ['specialization'] },
     { table: 'visits', column: 'provider' }
   ]
@@ -73,7 +75,7 @@ const NEW_CHOICE = '__new__';
 const REPORT_BUCKET = 'reports';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null };
+const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null, providerLinks: new Map() };
 const listElement = document.querySelector('#record-list');
 const dialog = document.querySelector('#record-dialog');
 const form = document.querySelector('#record-form');
@@ -82,6 +84,21 @@ const dialogNotice = document.querySelector('#dialog-notice');
 
 function fileName(path) {
   return path.split('/').pop();
+}
+
+// Only http(s) links are shown, so a stored value can never run script when clicked.
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+async function loadProviderLinks() {
+  const { data } = await supabase.from('providers').select('name, profile_url');
+  state.providerLinks = new Map((data ?? []).filter(row => row.profile_url).map(row => [row.name.trim(), row.profile_url]));
 }
 
 function setDialogNotice(message) {
@@ -207,6 +224,18 @@ function render() {
       term.textContent = field.label;
       const description = document.createElement('dd');
       description.textContent = formatValue(field.name, value);
+      const profileUrl = field.choices?.profiles && safeUrl(state.providerLinks.get(String(value).trim()));
+      if (profileUrl) {
+        const profile = document.createElement('a');
+        profile.className = 'profile-link';
+        profile.href = profileUrl;
+        profile.target = '_blank';
+        profile.rel = 'noopener noreferrer';
+        profile.title = `Open ${value}'s profile`;
+        profile.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>';
+        profile.append('Profile');
+        description.append(' ', profile);
+      }
       group.append(term, description);
       details.append(group);
     }
@@ -257,7 +286,7 @@ async function loadRecords() {
   }
   setConnection(true);
   state.records = data ?? [];
-  await loadFileUrls();
+  await Promise.all([loadFileUrls(), loadProviderLinks()]);
   state.counts[state.section] = state.records.length;
   document.querySelector(`#count-${state.section}`).textContent = String(state.records.length);
   render();
@@ -332,11 +361,22 @@ function choiceField(field, currentValue, options) {
   newName.setAttribute('aria-label', `New ${noun}`);
   newName.hidden = true;
 
+  let profile = null;
+  if (field.choices.profiles) {
+    profile = document.createElement('input');
+    profile.type = 'url';
+    profile.name = `${field.name}__profile`;
+    profile.placeholder = 'Profile link (optional), https://…';
+    profile.setAttribute('aria-label', `${field.label} profile link`);
+    profile.value = state.providerLinks.get(currentValue?.trim()) ?? '';
+  }
+
   select.addEventListener('change', () => {
     const adding = select.value === NEW_CHOICE;
     newName.hidden = !adding;
     newName.required = adding;
     if (adding) newName.focus();
+    if (profile) profile.value = state.providerLinks.get(select.value) ?? '';
     // Fill related fields (e.g. specialization, unit, range) only when they are still empty.
     for (const [column, value] of Object.entries(options.fills.get(select.value) ?? {})) {
       const target = form.querySelector(`[name="${column}"]`);
@@ -345,6 +385,7 @@ function choiceField(field, currentValue, options) {
   });
 
   wrapper.append(label, select, newName);
+  if (profile) wrapper.append(profile);
   return wrapper;
 }
 
@@ -453,11 +494,27 @@ async function saveRecord(event) {
     return;
   }
   if (oldPath && (newPath || removeFile)) await supabase.storage.from(REPORT_BUCKET).remove([oldPath]);
+  const profileError = await saveProfileLinks(config, payload, formData);
   dialog.close();
   form.reset();
   setNotice(state.editing ? 'Record updated.' : 'Record added.', 'success');
   state.editing = null;
   await loadRecords();
+  if (profileError) setNotice(`Record saved, but the profile link could not be saved: ${profileError}`);
+}
+
+// Store a provider's profile link once (shared by every record with that name) when it changed.
+// Returns an error message, or null on success.
+async function saveProfileLinks(config, payload, formData) {
+  for (const field of config.fields.filter(item => item.choices?.profiles)) {
+    const name = payload[field.name]?.trim();
+    if (!name) continue;
+    const link = String(formData.get(`${field.name}__profile`) ?? '').trim();
+    if (link === (state.providerLinks.get(name) ?? '')) continue;
+    const { error } = await supabase.from('providers').upsert({ name, profile_url: link || null }, { onConflict: 'user_id,name' });
+    if (error) return error.message;
+  }
+  return null;
 }
 
 async function deleteRecord(record) {

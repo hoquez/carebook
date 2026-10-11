@@ -77,6 +77,8 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .range-in { background: #2fb36a; box-shadow: 0 0 6px 2px #2fb36a99; animation: glow 2s ease-in-out infinite; }
 .range-out { background: #d93b2b; box-shadow: 0 0 0 3px #d93b2b26; }
 @keyframes glow { 50% { box-shadow: 0 0 10px 4px #2fb36a66; } }
+.profile-link { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 2px 8px; border: 1px solid #c9dccf; border-radius: 999px; background: var(--mint); color: var(--green-dark); font-size: 11px; font-weight: 700; text-decoration: none; vertical-align: 1px; white-space: nowrap; }
+.profile-link:hover { border-color: var(--green); background: #d4e8da; }
 .trend-button { display: inline-flex; align-items: center; gap: 6px; }
 .trend-dialog { width: min(780px, calc(100vw - 28px)); }
 .trend-body { padding: 25px; }
