@@ -154,7 +154,7 @@ function render() {
     for (const field of config.fields) {
       const value = record[field.name];
       if (field.name === config.primary || value === null || value === undefined || value === '') continue;
-      // With a file attached, the "See report" link below replaces a placeholder note.
+      // With a file attached, the "View report" link below replaces a placeholder note.
       if (config.file && record[config.file.name] && /^see report\.?$/i.test(String(value).trim())) continue;
       const group = document.createElement('div');
       group.className = field.multiline ? 'detail-group detail-wide' : 'detail-group';
@@ -179,7 +179,7 @@ function render() {
         link.href = url;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.textContent = 'See report';
+        link.textContent = 'View report';
         link.title = fileName(filePath);
         description.append(link);
       } else {
