@@ -27,7 +27,7 @@ const sectionConfig = {
     table: 'lab_results',
     primary: 'test_name',
     sortBy: 'test_date',
-    file: { name: 'report_path', label: 'Report file' },
+    file: { name: 'report_path', label: 'Report' },
     fields: [
       { name: 'test_name', label: 'Test name', required: true },
       { name: 'result', label: 'Result' },
@@ -154,6 +154,8 @@ function render() {
     for (const field of config.fields) {
       const value = record[field.name];
       if (field.name === config.primary || value === null || value === undefined || value === '') continue;
+      // With a file attached, the "See report" link below replaces a placeholder note.
+      if (config.file && record[config.file.name] && /^see report\.?$/i.test(String(value).trim())) continue;
       const group = document.createElement('div');
       group.className = field.multiline ? 'detail-group detail-wide' : 'detail-group';
       const term = document.createElement('dt');
@@ -177,7 +179,8 @@ function render() {
         link.href = url;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.textContent = `View ${fileName(filePath)}`;
+        link.textContent = 'See report';
+        link.title = fileName(filePath);
         description.append(link);
       } else {
         description.textContent = 'File unavailable';
