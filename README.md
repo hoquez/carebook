@@ -8,6 +8,8 @@ A responsive, private health-records site for GitHub Pages, backed by Supabase. 
 2. **Block other sign-ups:** **Authentication → Sign In / Providers** → turn off **Allow new users to sign up**.
 3. **Create tables, access rules, and initial data:** **SQL Editor → New query**, paste the contents of `supabase-setup.sql`, check that `owner_email` near the top matches the login from step 1, then click **Run**.
 
+4. **Report files:** run `supabase-reports.sql` the same way. It creates a private `reports` storage bucket for PDFs and images attached to lab results.
+
 Each row has a `user_id`, and the access rules only let the signed-in owner of a row read or change it. New records are stamped with your user automatically.
 
 Do not run `supabase-demo-policies.sql`: it makes every record public and editable by anyone.

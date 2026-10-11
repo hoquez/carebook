@@ -27,6 +27,7 @@ const sectionConfig = {
     table: 'lab_results',
     primary: 'test_name',
     sortBy: 'test_date',
+    file: { name: 'report_path', label: 'Report file' },
     fields: [
       { name: 'test_name', label: 'Test name', required: true },
       { name: 'result', label: 'Result' },
@@ -52,11 +53,24 @@ const sectionConfig = {
   }
 };
 
-const state = { section: 'medications', records: [], editing: null, counts: {} };
+const REPORT_BUCKET = 'reports';
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null };
 const listElement = document.querySelector('#record-list');
 const dialog = document.querySelector('#record-dialog');
 const form = document.querySelector('#record-form');
 const notice = document.querySelector('#notice');
+const dialogNotice = document.querySelector('#dialog-notice');
+
+function fileName(path) {
+  return path.split('/').pop();
+}
+
+function setDialogNotice(message) {
+  dialogNotice.textContent = message;
+  dialogNotice.hidden = !message;
+}
 
 function escapeText(value) {
   return String(value ?? '');
@@ -131,7 +145,7 @@ function render() {
     deleteButton.className = 'text-button text-button-danger';
     deleteButton.type = 'button';
     deleteButton.textContent = 'Delete';
-    deleteButton.addEventListener('click', () => deleteRecord(record.id));
+    deleteButton.addEventListener('click', () => deleteRecord(record));
     actions.append(editButton, deleteButton);
     header.append(heading, actions);
 
@@ -139,13 +153,35 @@ function render() {
     details.className = 'record-details';
     for (const field of config.fields) {
       const value = record[field.name];
-      if (value === null || value === undefined || value === '') continue;
+      if (field.name === config.primary || value === null || value === undefined || value === '') continue;
       const group = document.createElement('div');
       group.className = field.multiline ? 'detail-group detail-wide' : 'detail-group';
       const term = document.createElement('dt');
       term.textContent = field.label;
       const description = document.createElement('dd');
       description.textContent = formatValue(field.name, value);
+      group.append(term, description);
+      details.append(group);
+    }
+    const filePath = config.file && record[config.file.name];
+    if (filePath) {
+      const group = document.createElement('div');
+      group.className = 'detail-group';
+      const term = document.createElement('dt');
+      term.textContent = config.file.label;
+      const description = document.createElement('dd');
+      const url = state.fileUrls[filePath];
+      if (url) {
+        const link = document.createElement('a');
+        link.className = 'file-link';
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = `View ${fileName(filePath)}`;
+        description.append(link);
+      } else {
+        description.textContent = 'File unavailable';
+      }
       group.append(term, description);
       details.append(group);
     }
@@ -170,10 +206,23 @@ async function loadRecords() {
   }
   setConnection(true);
   state.records = data ?? [];
+  await loadFileUrls();
   state.counts[state.section] = state.records.length;
   document.querySelector(`#count-${state.section}`).textContent = String(state.records.length);
   render();
   await loadOtherCounts();
+}
+
+// The bucket is private, so each file gets a temporary signed link (valid 1 hour).
+async function loadFileUrls() {
+  state.fileUrls = {};
+  const { file } = activeConfig();
+  const paths = file ? state.records.map(record => record[file.name]).filter(Boolean) : [];
+  if (!paths.length) return;
+  const { data } = await supabase.storage.from(REPORT_BUCKET).createSignedUrls(paths, 60 * 60);
+  for (const item of data ?? []) {
+    if (item.signedUrl) state.fileUrls[item.path] = item.signedUrl;
+  }
 }
 
 async function loadOtherCounts() {
@@ -207,6 +256,32 @@ function openDialog(record = null) {
     wrapper.append(label, control);
     fieldsContainer.append(wrapper);
   }
+  if (config.file) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'form-field form-field-wide';
+    const label = document.createElement('span');
+    label.textContent = `${config.file.label} (PDF or image, up to 20 MB)`;
+    const control = document.createElement('input');
+    control.type = 'file';
+    control.name = 'upload_file';
+    control.accept = 'application/pdf,image/*';
+    wrapper.append(label, control);
+    fieldsContainer.append(wrapper);
+
+    const currentPath = record?.[config.file.name];
+    if (currentPath) {
+      const current = document.createElement('label');
+      current.className = 'file-current form-field-wide';
+      const remove = document.createElement('input');
+      remove.type = 'checkbox';
+      remove.name = 'remove_file';
+      const text = document.createElement('span');
+      text.textContent = `Remove current file (${fileName(currentPath)}). Choosing a new file replaces it.`;
+      current.append(remove, text);
+      fieldsContainer.append(current);
+    }
+  }
+  setDialogNotice('');
   dialog.showModal();
   fieldsContainer.querySelector('input, textarea')?.focus();
 }
@@ -219,15 +294,45 @@ async function saveRecord(event) {
     return [field.name, value === '' ? null : value];
   }));
   const saveButton = document.querySelector('#save-button');
+  const oldPath = config.file ? state.editing?.[config.file.name] ?? null : null;
+  const upload = config.file ? form.querySelector('[name="upload_file"]').files[0] : null;
+  const removeFile = Boolean(form.querySelector('[name="remove_file"]')?.checked);
+  let newPath = null;
+  setDialogNotice('');
+
+  if (upload) {
+    if (upload.size > MAX_FILE_BYTES) {
+      setDialogNotice('That file is larger than 20 MB. Choose a smaller file or a lower-resolution photo.');
+      return;
+    }
+    saveButton.disabled = true;
+    saveButton.textContent = 'Uploading…';
+    const safeName = upload.name.replace(/[^\w.\-]+/g, '_');
+    newPath = `${state.userId}/${crypto.randomUUID()}/${safeName}`;
+    const { error } = await supabase.storage.from(REPORT_BUCKET).upload(newPath, upload, { contentType: upload.type || undefined });
+    if (error) {
+      saveButton.disabled = false;
+      saveButton.textContent = state.editing ? 'Save changes' : 'Save record';
+      setDialogNotice(`Could not upload file: ${error.message}`);
+      return;
+    }
+    payload[config.file.name] = newPath;
+  } else if (config.file) {
+    payload[config.file.name] = removeFile ? null : oldPath;
+  }
+
   saveButton.disabled = true;
   const result = state.editing
     ? await supabase.from(config.table).update(payload).eq('id', state.editing.id)
     : await supabase.from(config.table).insert(payload);
   saveButton.disabled = false;
+  saveButton.textContent = state.editing ? 'Save changes' : 'Save record';
   if (result.error) {
-    setNotice(`Could not save record: ${result.error.message}. Check that your table columns match the form and that write policies are enabled.`);
+    if (newPath) await supabase.storage.from(REPORT_BUCKET).remove([newPath]);
+    setDialogNotice(`Could not save record: ${result.error.message}`);
     return;
   }
+  if (oldPath && (newPath || removeFile)) await supabase.storage.from(REPORT_BUCKET).remove([oldPath]);
   dialog.close();
   form.reset();
   setNotice(state.editing ? 'Record updated.' : 'Record added.', 'success');
@@ -235,13 +340,16 @@ async function saveRecord(event) {
   await loadRecords();
 }
 
-async function deleteRecord(id) {
-  if (!id || !window.confirm('Delete this record? This cannot be undone.')) return;
-  const { error } = await supabase.from(activeConfig().table).delete().eq('id', id);
+async function deleteRecord(record) {
+  if (!record.id || !window.confirm('Delete this record? This cannot be undone.')) return;
+  const config = activeConfig();
+  const { error } = await supabase.from(config.table).delete().eq('id', record.id);
   if (error) {
     setNotice(`Could not delete record: ${error.message}. Check your table id and Supabase write policies.`);
     return;
   }
+  const filePath = config.file && record[config.file.name];
+  if (filePath) await supabase.storage.from(REPORT_BUCKET).remove([filePath]);
   setNotice('Record deleted.', 'success');
   await loadRecords();
 }
@@ -295,6 +403,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
   const nowSignedIn = Boolean(session);
   if (nowSignedIn === signedIn) return;
   signedIn = nowSignedIn;
+  state.userId = session?.user.id ?? null;
   showSignedIn(signedIn);
   if (signedIn) {
     // Defer so the Supabase auth lock is released before querying.
