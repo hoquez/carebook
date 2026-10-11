@@ -9,6 +9,7 @@ const sectionConfig = {
     table: 'medications',
     primary: 'medicine',
     sortBy: 'start_date',
+    groupBy: 'prescriber',
     fields: [
       { name: 'medicine', label: 'Medicine', required: true },
       { name: 'strength', label: 'Strength' },
@@ -43,6 +44,7 @@ const sectionConfig = {
     table: 'visits',
     primary: 'visit_date',
     sortBy: 'visit_date',
+    groupBy: 'provider',
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
       { name: 'provider', label: 'Provider' },
@@ -127,9 +129,17 @@ function render() {
     return;
   }
 
+  // Alternate between two backgrounds each time the date + provider group changes.
+  let groupKey = null;
+  let band = 1;
   for (const record of records) {
+    const key = `${record[config.sortBy] ?? ''}|${config.groupBy ? record[config.groupBy] ?? '' : ''}`;
+    if (key !== groupKey) {
+      groupKey = key;
+      band = band === 1 ? 0 : 1;
+    }
     const item = document.createElement('article');
-    item.className = 'record-item';
+    item.className = `record-item record-band-${band}`;
     const header = document.createElement('div');
     header.className = 'record-item-header';
     const heading = document.createElement('h2');
@@ -197,8 +207,11 @@ async function loadRecords() {
   listElement.setAttribute('aria-busy', 'true');
   listElement.innerHTML = '<div class="loading-state">Loading records…</div>';
   setNotice('');
-  const { table, sortBy } = activeConfig();
-  const { data, error } = await supabase.from(table).select('*').order(sortBy, { ascending: false, nullsFirst: false });
+  const { table, sortBy, groupBy } = activeConfig();
+  // Earliest date first; rows sharing a date and provider stay next to each other.
+  let query = supabase.from(table).select('*').order(sortBy, { ascending: true, nullsFirst: false });
+  if (groupBy) query = query.order(groupBy, { ascending: true, nullsFirst: false });
+  const { data, error } = await query;
   if (error) {
     setConnection(false);
     state.records = [];
