@@ -81,7 +81,15 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .empty-state h2 { margin-bottom: 7px; font: 700 17px var(--font-display); }
 .empty-state p, .loading-state { color: var(--muted); font-size: 13px; }
 .empty-state p { margin: 0; }
-.page-footer { display: flex; justify-content: space-between; gap: 15px; padding: 24px 0 30px; color: #89958c; font-size: 11px; }
+.page-footer { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 15px; padding: 28px 0 30px; color: #89958c; font-size: 11px; }
+.footer-contact .eyebrow { margin-bottom: 10px; }
+.contact-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+.contact-button { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; }
+.contact-button:hover { border-color: #afc8b8; color: var(--green-dark); }
+.contact-button svg { flex: none; color: var(--green); }
+.contact-button span { display: grid; gap: 1px; }
+.contact-button small { color: var(--muted); font-size: 11px; font-weight: 400; overflow-wrap: anywhere; }
+.contact-whatsapp svg { color: #1f9d55; }
 .record-dialog { width: min(620px, calc(100vw - 28px)); max-height: min(88vh, 800px); padding: 0; border: 1px solid #dce3da; border-radius: 8px; background: var(--white); color: var(--ink); box-shadow: 0 20px 70px #13271c33; }
 .record-dialog::backdrop { background: #17271f80; backdrop-filter: blur(2px); }
 .record-dialog form { padding: 25px; }
@@ -136,7 +144,8 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
   .toolbar { min-height: 54px; }
   .record-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
   .record-item { padding: 19px 0 21px; }
-  .page-footer { flex-direction: column; gap: 5px; padding-bottom: 22px; }
+  .page-footer { flex-direction: column; align-items: stretch; gap: 14px; padding-bottom: 22px; }
+  .contact-button { flex: 1 1 100%; }
   .record-dialog form { padding: 19px; }
   .form-fields { grid-template-columns: minmax(0, 1fr); gap: 13px; }
   .form-field-wide { grid-column: auto; }
