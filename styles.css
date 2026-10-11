@@ -63,6 +63,9 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .search-icon { font-size: 23px; line-height: 1; transform: rotate(-20deg); }
 .search-field input { width: 100%; height: 42px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 13px; }
 .search-field input::placeholder { color: #99a39c; }
+.date-filter { margin-left: auto; }
+.date-filter select { min-height: 36px; padding: 6px 30px 6px 10px; border: 1px solid #dbe2da; border-radius: 5px; outline: 0; background: var(--white); color: var(--ink); font: 600 12px var(--font-body); cursor: pointer; }
+.date-filter select:focus { border-color: #6f9b7c; box-shadow: 0 0 0 3px #6f9b7c20; }
 .result-count { color: var(--muted); font-size: 12px; }
 .notice { margin-top: 18px; padding: 12px 14px; border: 1px solid #e8c7bd; border-radius: 5px; background: var(--coral-pale); color: #844232; font-size: 13px; line-height: 1.5; }
 .notice-success { border-color: #c1dbca; background: #eaf4ec; color: #2d6547; }
@@ -174,7 +177,9 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
   .page-description { max-width: 290px; font-size: 13px; line-height: 1.5; }
   .page-heading .primary-button { min-width: 42px; padding: 0 11px; font-size: 0; }
   .page-heading .primary-button span { font-size: 21px; }
-  .toolbar { min-height: 54px; }
+  .toolbar { flex-wrap: wrap; row-gap: 4px; min-height: 54px; padding-block: 4px 10px; }
+  .toolbar .search-field { width: 100%; }
+  .date-filter { margin-left: 0; }
   .record-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
   .record-item { padding: 19px 14px 21px; }
   .record-item-header { flex-wrap: wrap; row-gap: 8px; }

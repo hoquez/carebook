@@ -24,6 +24,7 @@ const sectionConfig = {
     primary: 'medicine',
     sortBy: 'start_date',
     groupBy: 'prescriber',
+    dateFilter: true,
     fields: [
       { name: 'medicine', label: 'Medicine', required: true },
       { name: 'strength', label: 'Strength' },
@@ -42,6 +43,7 @@ const sectionConfig = {
     table: 'lab_results',
     primary: 'test_name',
     sortBy: 'test_date',
+    dateFilter: true,
     file: { name: 'report_path', label: 'Report' },
     rangeCheck: { value: 'result', range: 'reference_range' },
     trends: true,
@@ -133,10 +135,41 @@ function formatValue(fieldName, value) {
   return escapeText(value);
 }
 
+const ALL_DATES = '';
+const NO_DATE = '__none__';
+
 function filteredRecords() {
   const query = document.querySelector('#search-input').value.trim().toLocaleLowerCase();
-  if (!query) return state.records;
-  return state.records.filter(record => Object.values(record).some(value => String(value ?? '').toLocaleLowerCase().includes(query)));
+  const { sortBy, dateFilter } = activeConfig();
+  const date = dateFilter ? document.querySelector('#date-filter').value : ALL_DATES;
+  return state.records.filter(record => {
+    if (date === NO_DATE && record[sortBy]) return false;
+    if (date !== ALL_DATES && date !== NO_DATE && record[sortBy] !== date) return false;
+    return !query || Object.values(record).some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+  });
+}
+
+// Rebuild the date dropdown from the loaded records, keeping the current choice when it still exists.
+function renderDateFilter() {
+  const { sortBy, dateFilter } = activeConfig();
+  const field = document.querySelector('#date-filter-field');
+  const select = document.querySelector('#date-filter');
+  field.hidden = !dateFilter;
+  if (!dateFilter) return;
+  const previous = select.value;
+  const counts = new Map();
+  let undated = 0;
+  for (const record of state.records) {
+    const date = record[sortBy];
+    if (date) counts.set(date, (counts.get(date) ?? 0) + 1);
+    else undated += 1;
+  }
+  select.replaceChildren(new Option('All dates', ALL_DATES));
+  for (const [date, count] of [...counts].sort(([a], [b]) => b.localeCompare(a))) {
+    select.append(new Option(`${formatValue(sortBy, date)} (${count})`, date));
+  }
+  if (undated) select.append(new Option(`No date (${undated})`, NO_DATE));
+  select.value = [...select.options].some(option => option.value === previous) ? previous : ALL_DATES;
 }
 
 function render() {
@@ -155,7 +188,7 @@ function render() {
     const title = document.createElement('h2');
     title.textContent = state.records.length ? 'No matching records' : 'Nothing here yet';
     const detail = document.createElement('p');
-    detail.textContent = state.records.length ? 'Try another search term.' : `Add a ${config.title.toLocaleLowerCase()} record to get started.`;
+    detail.textContent = state.records.length ? 'Try another search term or date.' :`Add a ${config.title.toLocaleLowerCase()} record to get started.`;
     empty.append(title, detail);
     listElement.append(empty);
     return;
@@ -281,12 +314,14 @@ async function loadRecords() {
     state.records = [];
     listElement.setAttribute('aria-busy', 'false');
     setNotice(`Could not load ${activeConfig().table}: ${error.message}. Check the table name, columns, and Supabase policies.`);
+    renderDateFilter();
     render();
     return;
   }
   setConnection(true);
   state.records = data ?? [];
   await Promise.all([loadFileUrls(), loadProviderLinks()]);
+  renderDateFilter();
   state.counts[state.section] = state.records.length;
   document.querySelector(`#count-${state.section}`).textContent = String(state.records.length);
   render();
@@ -536,12 +571,14 @@ document.querySelectorAll('[data-section]').forEach(button => {
     state.section = button.dataset.section;
     document.querySelectorAll('[data-section]').forEach(item => item.classList.toggle('is-active', item === button));
     document.querySelector('#search-input').value = '';
+    document.querySelector('#date-filter').value = ALL_DATES;
     loadRecords();
   });
 });
 document.querySelector('#add-button').addEventListener('click', () => openDialog());
 document.querySelector('#refresh-button').addEventListener('click', loadRecords);
 document.querySelector('#search-input').addEventListener('input', render);
+document.querySelector('#date-filter').addEventListener('change', render);
 document.querySelector('#close-dialog').addEventListener('click', () => dialog.close());
 document.querySelector('#cancel-button').addEventListener('click', () => dialog.close());
 form.addEventListener('submit', saveRecord);
