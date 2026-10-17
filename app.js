@@ -340,7 +340,13 @@ function render() {
       details.append(group);
     }
     item.append(header, details);
-    for (const block of linkedBlocks(config, record)) item.append(block);
+    const blocks = linkedBlocks(config, record);
+    if (blocks.length) {
+      const grid = document.createElement('div');
+      grid.className = 'linked-grid';
+      grid.append(...blocks);
+      item.append(grid);
+    }
     listElement.append(item);
   }
 }
