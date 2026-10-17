@@ -124,6 +124,8 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .linked-entry { padding: 7px 0; border-top: 1px solid #eaefe8; }
 .linked-entry:first-of-type { border-top: 0; }
 .linked-line { margin: 0; color: #34463d; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.linked-line .file-link, .linked-line .trend-button { margin-left: 14px; white-space: nowrap; }
+.linked-line .trend-button { vertical-align: -3px; }
 .linked-sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .vitals-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 12px 16px; margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px solid #eaefe8; }
 .vitals-list dt { margin-bottom: 3px; color: var(--muted); font-size: 11px; }

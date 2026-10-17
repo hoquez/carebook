@@ -95,7 +95,7 @@ const NEW_CHOICE = '__new__';
 const REPORT_BUCKET = 'reports';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null, providerLinks: new Map(), linked: {} };
+const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null, providerLinks: new Map(), linked: {}, linkedAll: {} };
 const listElement = document.querySelector('#record-list');
 const dialog = document.querySelector('#record-dialog');
 const form = document.querySelector('#record-form');
@@ -127,10 +127,12 @@ function safeUrl(value) {
 // Records from other tables that the active section links to (Rx and Test on visit notes).
 async function loadLinked() {
   state.linked = {};
+  state.linkedAll = {};
   const { linked } = activeConfig();
   if (!linked) return;
   const results = await Promise.all(linked.map(source => supabase.from(source.table).select('*')));
   linked.forEach((source, index) => {
+    state.linkedAll[source.table] = results[index].data ?? [];
     const byKey = new Map();
     for (const row of results[index].data ?? []) {
       const key = visitKey(row[source.date], row[source.provider]);
@@ -276,15 +278,7 @@ function render() {
     deleteButton.type = 'button';
     deleteButton.textContent = 'Delete';
     deleteButton.addEventListener('click', () => deleteRecord(record));
-    if (config.trends) {
-      const trendButton = document.createElement('button');
-      trendButton.className = 'text-button trend-button';
-      trendButton.type = 'button';
-      trendButton.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 15 3.5-4 3 2.5L17 9"/></svg>';
-      trendButton.append('View trends');
-      trendButton.addEventListener('click', () => openTrends(state.records, record));
-      actions.append(trendButton);
-    }
+    if (config.trends) actions.append(trendButton(state.records, record));
     actions.append(editButton, deleteButton);
     header.append(heading, actions);
 
@@ -352,6 +346,16 @@ function render() {
   }
 }
 
+function trendButton(allRecords, record) {
+  const button = document.createElement('button');
+  button.className = 'text-button trend-button';
+  button.type = 'button';
+  button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 15 3.5-4 3 2.5L17 9"/></svg>';
+  button.append('View trends');
+  button.addEventListener('click', () => openTrends(allRecords, record));
+  return button;
+}
+
 // "Leflunomide (Napa) - 10 mg, 7 days" with the dosage on the line below.
 function rxLine(medication) {
   const parts = [medication.medicine || 'Unnamed medicine'];
@@ -393,8 +397,10 @@ function testLine(lab) {
     link.rel = 'noopener';
     link.textContent = 'View report';
     link.title = fileName(lab.report_path);
-    line.append(' ', link);
+    line.append(link);
   }
+  // Trends compare this test across every lab result, not just this visit's.
+  line.append(trendButton(state.linkedAll.lab_results ?? [], lab));
   entry.append(line);
   return entry;
 }
