@@ -35,6 +35,7 @@ const sectionConfig = {
       { name: 'strength', label: 'Strength' },
       { name: 'brand', label: 'Brand name' },
       { name: 'dosage', label: 'Dosage' },
+      { name: 'duration', label: 'Duration' },
       { name: 'prescriber', label: 'Prescriber', choices: PROVIDER_CHOICES },
       { name: 'specialization', label: 'Specialization' },
       { name: 'start_date', label: 'Start date', type: 'date' },
@@ -58,6 +59,7 @@ const sectionConfig = {
       { name: 'unit', label: 'Unit', choices: UNIT_CHOICES },
       { name: 'reference_range', label: 'Reference range' },
       { name: 'test_date', label: 'Test date', type: 'date' },
+      { name: 'provider', label: 'Provider', choices: PROVIDER_CHOICES },
       { name: 'report_note', label: 'Report note', multiline: true }
     ]
   },
@@ -68,11 +70,22 @@ const sectionConfig = {
     primary: 'visit_date',
     sortBy: 'visit_date',
     groupBy: 'provider',
+    // Rx and Test are built from medications and lab results that share this visit's key.
+    linked: [
+      { title: 'Rx', table: 'medications', date: 'start_date', provider: 'prescriber', kind: 'rx' },
+      { title: 'Test', table: 'lab_results', date: 'test_date', provider: 'provider', kind: 'test' }
+    ],
+    vitals: ['bp', 'pulse', 'heart_rate', 'weight', 'height'],
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
       { name: 'provider', label: 'Provider', choices: PROVIDER_CHOICES },
-      { name: 'summary', label: 'Summary' },
+      { name: 'advice', label: 'Advice', multiline: true },
       { name: 'symptoms', label: 'Symptoms', multiline: true },
+      { name: 'bp', label: 'BP', group: 'vitals' },
+      { name: 'pulse', label: 'Pulse', group: 'vitals' },
+      { name: 'heart_rate', label: 'Heart rate', group: 'vitals' },
+      { name: 'weight', label: 'Weight', group: 'vitals' },
+      { name: 'height', label: 'Height', group: 'vitals' },
       { name: 'notes', label: 'Notes', multiline: true }
     ]
   }
@@ -82,7 +95,7 @@ const NEW_CHOICE = '__new__';
 const REPORT_BUCKET = 'reports';
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
-const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null, providerLinks: new Map() };
+const state = { section: 'medications', records: [], editing: null, counts: {}, fileUrls: {}, userId: null, providerLinks: new Map(), linked: {} };
 const listElement = document.querySelector('#record-list');
 const dialog = document.querySelector('#record-dialog');
 const form = document.querySelector('#record-form');
@@ -93,6 +106,14 @@ function fileName(path) {
   return path.split('/').pop();
 }
 
+// A visit's key: its date plus the last 3 letters of the provider's name, e.g. "2023-02-23-man".
+// Medications and lab results with the same key belong to that visit.
+function visitKey(date, provider) {
+  const name = String(provider ?? '').trim().toLocaleLowerCase().replace(/\s+$/, '');
+  if (!date || name.length < 3) return null;
+  return `${date}-${name.slice(-3)}`;
+}
+
 // Only http(s) links are shown, so a stored value can never run script when clicked.
 function safeUrl(value) {
   try {
@@ -101,6 +122,24 @@ function safeUrl(value) {
   } catch {
     return null;
   }
+}
+
+// Records from other tables that the active section links to (Rx and Test on visit notes).
+async function loadLinked() {
+  state.linked = {};
+  const { linked } = activeConfig();
+  if (!linked) return;
+  const results = await Promise.all(linked.map(source => supabase.from(source.table).select('*')));
+  linked.forEach((source, index) => {
+    const byKey = new Map();
+    for (const row of results[index].data ?? []) {
+      const key = visitKey(row[source.date], row[source.provider]);
+      if (!key) continue;
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key).push(row);
+    }
+    state.linked[source.table] = byKey;
+  });
 }
 
 async function loadProviderLinks() {
@@ -213,7 +252,7 @@ function render() {
     const header = document.createElement('div');
     header.className = 'record-item-header';
     const heading = document.createElement('h2');
-    heading.textContent = escapeText(record[config.primary]) || 'Untitled record';
+    heading.textContent = formatValue(config.primary, record[config.primary]) || 'Untitled record';
     if (config.rangeCheck) {
       const inRange = rangeStatus(record[config.rangeCheck.value], record[config.rangeCheck.range]);
       if (inRange !== null) {
@@ -253,7 +292,8 @@ function render() {
     details.className = 'record-details';
     for (const field of config.fields) {
       const value = record[field.name];
-      if (field.name === config.primary || value === null || value === undefined || value === '') continue;
+      // Vitals are shown in the Test section instead of the main detail list.
+      if (field.name === config.primary || field.group === 'vitals' || value === null || value === undefined || value === '') continue;
       // With a file attached, the "View report" link below replaces a placeholder note.
       if (config.file && record[config.file.name] && /^see report\.?$/i.test(String(value).trim())) continue;
       const group = document.createElement('div');
@@ -301,8 +341,104 @@ function render() {
       details.append(group);
     }
     item.append(header, details);
+    for (const block of linkedBlocks(config, record)) item.append(block);
     listElement.append(item);
   }
+}
+
+// "Leflunomide (Napa) - 10 mg, 7 days" with the dosage on the line below.
+function rxLine(medication) {
+  const parts = [medication.medicine || 'Unnamed medicine'];
+  if (medication.brand) parts.push(` (${medication.brand})`);
+  const tail = [medication.strength, medication.duration || dateSpan(medication)].filter(Boolean);
+  const line = document.createElement('p');
+  line.className = 'linked-line';
+  line.textContent = parts.join('') + (tail.length ? ` - ${tail.join(', ')}` : '');
+  const entry = document.createElement('div');
+  entry.className = 'linked-entry';
+  entry.append(line);
+  if (medication.dosage) {
+    const dosage = document.createElement('p');
+    dosage.className = 'linked-sub';
+    dosage.textContent = medication.dosage;
+    entry.append(dosage);
+  }
+  return entry;
+}
+
+function dateSpan(medication) {
+  if (!medication.start_date || !medication.end_date) return '';
+  return `${formatValue('start_date', medication.start_date)} – ${formatValue('end_date', medication.end_date)}`;
+}
+
+// Test name plus its report link, when one is attached.
+function testLine(lab) {
+  const entry = document.createElement('div');
+  entry.className = 'linked-entry';
+  const line = document.createElement('p');
+  line.className = 'linked-line';
+  line.textContent = lab.test_name || 'Unnamed test';
+  const url = lab.report_path && state.fileUrls[lab.report_path];
+  if (url) {
+    const link = document.createElement('a');
+    link.className = 'file-link';
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'View report';
+    link.title = fileName(lab.report_path);
+    line.append(' ', link);
+  }
+  entry.append(line);
+  return entry;
+}
+
+// The Rx and Test sections of a visit note, built from records sharing the visit's key.
+function linkedBlocks(config, record) {
+  if (!config.linked) return [];
+  const key = visitKey(record[config.sortBy], record[config.groupBy]);
+  const vitals = (config.vitals ?? [])
+    .map(name => ({ field: config.fields.find(item => item.name === name), value: record[name] }))
+    .filter(item => item.value);
+  const blocks = [];
+
+  for (const source of config.linked) {
+    const rows = key ? state.linked[source.table]?.get(key) ?? [] : [];
+    const showVitals = source.kind === 'test' && vitals.length;
+    if (!rows.length && !showVitals) continue;
+
+    const block = document.createElement('section');
+    block.className = 'linked-block';
+    const title = document.createElement('h3');
+    title.textContent = source.title;
+    if (key) {
+      const tag = document.createElement('span');
+      tag.className = 'linked-key';
+      tag.title = 'Visit ID: date and the last 3 letters of the provider';
+      tag.textContent = key;
+      title.append(tag);
+    }
+    block.append(title);
+
+    if (showVitals) {
+      const list = document.createElement('dl');
+      list.className = 'vitals-list';
+      for (const { field, value } of vitals) {
+        const group = document.createElement('div');
+        const term = document.createElement('dt');
+        term.textContent = field.label;
+        const description = document.createElement('dd');
+        description.textContent = value;
+        group.append(term, description);
+        list.append(group);
+      }
+      block.append(list);
+    }
+
+    for (const row of rows) block.append(source.kind === 'rx' ? rxLine(row) : testLine(row));
+    blocks.push(block);
+  }
+  return blocks;
 }
 
 async function loadRecords() {
@@ -325,6 +461,7 @@ async function loadRecords() {
   }
   setConnection(true);
   state.records = data ?? [];
+  await loadLinked();
   await Promise.all([loadFileUrls(), loadProviderLinks()]);
   renderDateFilter();
   state.counts[state.section] = state.records.length;
@@ -338,6 +475,12 @@ async function loadFileUrls() {
   state.fileUrls = {};
   const { file } = activeConfig();
   const paths = file ? state.records.map(record => record[file.name]).filter(Boolean) : [];
+  // Lab reports shown inside a visit note's Test section need links too.
+  for (const byKey of Object.values(state.linked)) {
+    for (const rows of byKey.values()) {
+      for (const row of rows) if (row.report_path) paths.push(row.report_path);
+    }
+  }
   if (!paths.length) return;
   const { data } = await supabase.storage.from(REPORT_BUCKET).createSignedUrls(paths, 60 * 60);
   for (const item of data ?? []) {

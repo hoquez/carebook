@@ -9,10 +9,16 @@ A responsive, private health-records site for GitHub Pages, backed by Supabase. 
 3. **Create tables, access rules, and initial data:** **SQL Editor → New query**, paste the contents of `supabase-setup.sql`, check that `owner_email` near the top matches the login from step 1, then click **Run**.
 
 4. **Report files:** run `supabase-reports.sql` the same way. It creates a private `reports` storage bucket for PDFs and images attached to lab results.
+5. **Provider profiles:** run `supabase-providers.sql`. It creates a `providers` table holding one optional profile link per doctor.
+6. **Visit note sections:** run `supabase-visit-sections.sql`. It renames the visit `summary` column to `advice`, adds the vitals columns, adds `provider` to lab results, and adds `duration` to medications.
 
 Each row has a `user_id`, and the access rules only let the signed-in owner of a row read or change it. New records are stamped with your user automatically.
 
 Do not run `supabase-demo-policies.sql`: it makes every record public and editable by anyone.
+
+## How visit notes pull in Rx and Test
+
+A visit note shows an **Rx** section built from medications and a **Test** section built from lab results. A record belongs to a visit when it shares the visit's key: the date plus the last three letters of the provider's name, lower-cased. A visit on `2023-02-23` with provider `Dr. MM Zaman` has the key `2023-02-23-man`, and it collects every medication whose `start_date` and `prescriber` produce that key, and every lab result whose `test_date` and `provider` produce it. The key is shown on each section so mismatches are easy to spot.
 
 ## Supabase keys
 
