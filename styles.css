@@ -77,6 +77,7 @@ h1 { margin-bottom: 8px; font: 700 30px/1.2 var(--font-display); }
 .current-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 14px 20px; padding: 0 18px; }
 .current-name { margin: 0; color: #403522; font-size: 13px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
 .current-dosage { margin: 3px 0 0; color: #887754; font-size: 12px; font-variant-numeric: tabular-nums; }
+.list-heading { margin: 22px 0 0; padding: 10px 18px; border: 1px solid #d3e0d6; border-bottom: 0; border-radius: 8px 8px 0 0; background: var(--heading-tint); color: var(--heading-ink); font: 700 13px var(--font-display); }
 .record-list { display: grid; gap: 0; min-height: 215px; }
 .record-item { padding: 22px 18px 25px; border-bottom: 1px solid var(--line); animation: appear .28s ease both; }
 .record-band-0 { background: var(--white); }

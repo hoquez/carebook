@@ -31,6 +31,7 @@ const sectionConfig = {
     groupBy: 'prescriber',
     dateFilter: true,
     ongoing: true,
+    listHeading: 'Medicine history',
     fields: [
       { name: 'medicine', label: 'Medicine', required: true },
       { name: 'strength', label: 'Strength' },
@@ -227,6 +228,9 @@ function render() {
   document.querySelector('#page-description').textContent = config.description;
   document.querySelector('#result-count').textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'}`;
   renderOngoing();
+  const listHeading = document.querySelector('#list-heading');
+  listHeading.textContent = config.listHeading ?? '';
+  listHeading.hidden = !config.listHeading;
   listElement.replaceChildren();
   listElement.setAttribute('aria-busy', 'false');
 
