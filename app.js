@@ -325,7 +325,7 @@ function render() {
         link.href = url;
         link.target = '_blank';
         link.rel = 'noopener';
-        link.textContent = 'View report';
+        link.append(actionLabel('View report', 'Report'));
         link.title = fileName(filePath);
         description.append(link);
       } else {
@@ -346,12 +346,25 @@ function render() {
   }
 }
 
+// Full wording on desktop, a shorter label on phone screens.
+function actionLabel(long, short) {
+  const fragment = document.createDocumentFragment();
+  const longLabel = document.createElement('span');
+  longLabel.className = 'label-long';
+  longLabel.textContent = long;
+  const shortLabel = document.createElement('span');
+  shortLabel.className = 'label-short';
+  shortLabel.textContent = short;
+  fragment.append(longLabel, shortLabel);
+  return fragment;
+}
+
 function trendButton(allRecords, record) {
   const button = document.createElement('button');
   button.className = 'text-button trend-button';
   button.type = 'button';
   button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m7 15 3.5-4 3 2.5L17 9"/></svg>';
-  button.append('View trends');
+  button.append(actionLabel('View trends', 'Trend'));
   button.addEventListener('click', () => openTrends(allRecords, record));
   return button;
 }
@@ -395,7 +408,7 @@ function testLine(lab) {
     link.href = url;
     link.target = '_blank';
     link.rel = 'noopener';
-    link.textContent = 'View report';
+    link.append(actionLabel('View report', 'Report'));
     link.title = fileName(lab.report_path);
     line.append(link);
   }
