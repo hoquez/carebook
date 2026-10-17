@@ -2,3 +2,6 @@
 *.csv
 *.txt
 *.sql
+
+# Exception: the blank setup script holds no patient data and is needed to set up a copy.
+!supabase-new-patient.sql
