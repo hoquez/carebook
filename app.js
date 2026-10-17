@@ -30,6 +30,7 @@ const sectionConfig = {
     sortBy: 'start_date',
     groupBy: 'prescriber',
     dateFilter: true,
+    ongoing: true,
     fields: [
       { name: 'medicine', label: 'Medicine', required: true },
       { name: 'strength', label: 'Strength' },
@@ -225,6 +226,7 @@ function render() {
   document.querySelector('#breadcrumb-current').textContent = config.title;
   document.querySelector('#page-description').textContent = config.description;
   document.querySelector('#result-count').textContent = `${records.length} ${records.length === 1 ? 'record' : 'records'}`;
+  renderOngoing();
   listElement.replaceChildren();
   listElement.setAttribute('aria-busy', 'false');
 
@@ -343,6 +345,49 @@ function render() {
       item.append(grid);
     }
     listElement.append(item);
+  }
+}
+
+// Still being taken: no end date, or a duration that says to continue.
+function isOngoing(medication) {
+  return !medication.end_date || /^contin/i.test(String(medication.duration ?? '').trim());
+}
+
+// A panel of current medicines, one per medicine name, keeping the most recent prescription.
+function renderOngoing() {
+  const panel = document.querySelector('#current-meds');
+  const grid = document.querySelector('#current-meds-grid');
+  panel.hidden = !activeConfig().ongoing;
+  if (panel.hidden) return;
+
+  const latest = new Map();
+  for (const medication of state.records) {
+    if (!isOngoing(medication)) continue;
+    const name = String(medication.medicine ?? '').trim();
+    if (!name) continue;
+    const key = name.toLocaleLowerCase();
+    const seen = latest.get(key);
+    if (!seen || String(medication.start_date ?? '') > String(seen.start_date ?? '')) latest.set(key, medication);
+  }
+  const current = [...latest.values()].sort((a, b) => String(a.medicine).localeCompare(String(b.medicine)));
+
+  panel.hidden = !current.length;
+  document.querySelector('#current-meds-count').textContent = current.length ? `${current.length}` : '';
+  grid.replaceChildren();
+  for (const medication of current) {
+    const card = document.createElement('div');
+    card.className = 'current-card';
+    const name = document.createElement('p');
+    name.className = 'current-name';
+    name.textContent = medication.strength ? `${medication.medicine} - ${medication.strength}` : medication.medicine;
+    card.append(name);
+    if (medication.dosage) {
+      const dosage = document.createElement('p');
+      dosage.className = 'current-dosage';
+      dosage.textContent = medication.dosage;
+      card.append(dosage);
+    }
+    grid.append(card);
   }
 }
 
