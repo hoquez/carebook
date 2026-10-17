@@ -76,6 +76,7 @@ const sectionConfig = {
       { title: 'Test', table: 'lab_results', date: 'test_date', provider: 'provider', kind: 'test' }
     ],
     vitals: ['bp', 'pulse', 'weight', 'height'],
+    detailColumns: 2,
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
       { name: 'provider', label: 'Provider', choices: PROVIDER_CHOICES },
@@ -288,7 +289,7 @@ function render() {
     header.append(heading, actions);
 
     const details = document.createElement('dl');
-    details.className = 'record-details';
+    details.className = config.detailColumns === 2 ? 'record-details details-two-col' : 'record-details';
     for (const field of config.fields) {
       const value = record[field.name];
       // Vitals are shown in the Test section instead of the main detail list.
