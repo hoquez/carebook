@@ -75,7 +75,7 @@ const sectionConfig = {
       { title: 'Rx', table: 'medications', date: 'start_date', provider: 'prescriber', kind: 'rx' },
       { title: 'Test', table: 'lab_results', date: 'test_date', provider: 'provider', kind: 'test' }
     ],
-    vitals: ['bp', 'pulse', 'heart_rate', 'weight', 'height'],
+    vitals: ['bp', 'pulse', 'weight', 'height'],
     fields: [
       { name: 'visit_date', label: 'Visit date', type: 'date' },
       { name: 'provider', label: 'Provider', choices: PROVIDER_CHOICES },
@@ -83,7 +83,6 @@ const sectionConfig = {
       { name: 'symptoms', label: 'Symptoms', multiline: true },
       { name: 'bp', label: 'BP', group: 'vitals' },
       { name: 'pulse', label: 'Pulse', group: 'vitals' },
-      { name: 'heart_rate', label: 'Heart rate', group: 'vitals' },
       { name: 'weight', label: 'Weight', group: 'vitals' },
       { name: 'height', label: 'Height', group: 'vitals' },
       { name: 'notes', label: 'Notes', multiline: true }
